@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CV ATS Analyzer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-base: #0c0c0f;
+      --bg-surface: #14141a;
+      --bg-elevated: #1c1c26;
+      --bg-hover: #252532;
+      --border: #2a2a3a;
+      --text-primary: #f0f0f5;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7b;
+      --accent: #7c6cf0;
+      --accent-hover: #9488f5;
+      --accent-glow: rgba(124, 108, 240, 0.25);
+      --danger: #f06070;
+      --warning: #f0b060;
+      --success: #4ade80;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --sidebar-width: 280px;
+      --transition: 0.2s ease;
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: var(--font);
+      background: var(--bg-base);
+      color: var(--text-primary);
+      overflow: hidden;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) 1fr;
+      height: 100vh;
+    }
+
+    .sidebar {
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      animation: slideIn 0.4s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-16px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .sidebar-header {
+      padding: 24px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-header h1 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sidebar-header h1 .icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .sidebar-header p {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+      line-height: 1.45;
+    }
+
+    .sidebar-section {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-section label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    input[type="password"], input[type="text"] {
+      width: 100%;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 9px 12px;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 14px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--transition), transform 0.1s ease;
+      width: 100%;
+    }
+
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+    .btn-ghost {
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .sidebar-note, .hint {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+      line-height: 1.45;
+    }
+
+    .hint.warn { color: var(--warning); }
+
+    .api-status {
+      font-size: 0.75rem;
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      opacity: 0;
+      transition: opacity var(--transition);
+      color: var(--success);
+    }
+
+    .api-status.visible { opacity: 1; }
+    .api-status .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+    }
+
+    .cv-info {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      margin-top: 12px;
+      display: none;
+    }
+
+    .cv-info.visible { display: block; animation: fadeUp 0.3s ease; }
+
+    .cv-info .name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .cv-info .meta {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    #fileInput { display: none; }
+
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      overflow: hidden;
+      animation: fadeIn 0.4s ease;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .panel + .panel { border-left: 1px solid var(--border); }
+
+    .panel-header {
+      padding: 14px 20px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .panel-header h2 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .toolbar-group .btn { width: auto; padding: 7px 12px; font-size: 0.8rem; }
+
+    .page-info {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      min-width: 90px;
+      text-align: center;
+    }
+
+    .preview-body, .results-body {
+      flex: 1;
+      overflow: auto;
+      position: relative;
+    }
+
+    .preview-body {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 20px;
+      background: var(--bg-base);
+    }
+
+    .preview-body::-webkit-scrollbar, .results-body::-webkit-scrollbar { width: 6px; }
+    .preview-body::-webkit-scrollbar-thumb, .results-body::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+
+    #pdfCanvas {
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      border-radius: 4px;
+    }
+
+    .placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 40px 24px;
+      height: 100%;
+    }
+
+    .placeholder .big { font-size: 3.5rem; opacity: 0.3; }
+    .placeholder h3 { font-size: 1rem; color: var(--text-secondary); }
+    .placeholder p { font-size: 0.85rem; line-height: 1.6; max-width: 300px; }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(12, 12, 15, 0.8);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 10;
+      backdrop-filter: blur(4px);
+    }
+
+    .overlay.hidden { display: none; }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .results-body { padding: 20px; }
+
+    .score-hero {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 20px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 20px;
+      animation: fadeUp 0.4s ease;
+    }
+
+    .score-ring {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      flex-shrink: 0;
+    }
+
+    .score-ring svg { transform: rotate(-90deg); }
+
+    .score-ring .bg { stroke: var(--border); }
+    .score-ring .fg {
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s ease, stroke 0.3s ease;
+    }
+
+    .score-value {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .score-value .num {
+      font-size: 1.6rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .score-value .label {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 2px;
+    }
+
+    .score-summary h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .score-summary .rating-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 8px;
+    }
+
+    .score-summary p {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+
+    .rating-excellent { background: rgba(74, 222, 128, 0.15); color: var(--success); }
+    .rating-good { background: rgba(124, 108, 240, 0.15); color: var(--accent-hover); }
+    .rating-fair { background: rgba(240, 176, 96, 0.15); color: var(--warning); }
+    .rating-poor { background: rgba(240, 96, 112, 0.15); color: var(--danger); }
+
+    .section-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .categories { margin-bottom: 24px; }
+
+    .category-item {
+      margin-bottom: 14px;
+      animation: fadeUp 0.4s ease backwards;
+    }
+
+    .category-item:nth-child(2) { animation-delay: 0.05s; }
+    .category-item:nth-child(3) { animation-delay: 0.1s; }
+    .category-item:nth-child(4) { animation-delay: 0.15s; }
+    .category-item:nth-child(5) { animation-delay: 0.2s; }
+    .category-item:nth-child(6) { animation-delay: 0.25s; }
+
+    .category-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+      gap: 8px;
+    }
+
+    .category-top .name { font-size: 0.85rem; font-weight: 600; }
+    .category-top .score { font-size: 0.8rem; color: var(--text-secondary); flex-shrink: 0; }
+
+    .bar-track {
+      height: 6px;
+      background: var(--bg-hover);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 1s ease;
+    }
+
+    .category-feedback {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    .card-grid {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      animation: fadeUp 0.35s ease backwards;
+    }
+
+    .strength-card { border-left: 3px solid var(--success); }
+    .keyword-card { border-left: 3px solid var(--warning); }
+
+    .card ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .card li {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+      padding-left: 16px;
+      position: relative;
+    }
+
+    .card li::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: var(--text-muted);
+    }
+
+    .keyword-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      background: rgba(240, 176, 96, 0.12);
+      color: var(--warning);
+      border-radius: 20px;
+      border: 1px solid rgba(240, 176, 96, 0.25);
+    }
+
+    .improvements { margin-bottom: 20px; }
+
+    .improvement-item {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      margin-bottom: 10px;
+      animation: fadeUp 0.35s ease backwards;
+    }
+
+    .improvement-item .top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .priority {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .priority-high { background: rgba(240, 96, 112, 0.15); color: var(--danger); }
+    .priority-medium { background: rgba(240, 176, 96, 0.15); color: var(--warning); }
+    .priority-low { background: rgba(124, 108, 240, 0.15); color: var(--accent-hover); }
+
+    .improvement-item .area {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .improvement-item .suggestion {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .error-box {
+      background: rgba(240, 96, 112, 0.1);
+      border: 1px solid rgba(240, 96, 112, 0.3);
+      color: var(--danger);
+      padding: 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 900px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .sidebar { max-height: 42vh; border-right: none; border-bottom: 1px solid var(--border); }
+      .main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+      .panel + .panel { border-left: none; border-top: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1><span class="icon">📋</span> CV ATS Analyzer</h1>
+        <p>Upload your CV, get an ATS score, and actionable improvement tips.</p>
+      </div>
+
+      <div class="sidebar-section">
+        <label for="apiKeyInput">Gemini API Key</label>
+        <input type="password" id="apiKeyInput" placeholder="Enter your API key" autocomplete="off">
+        <button class="btn btn-primary" id="saveKeyBtn" style="margin-top: 8px;">Save API Key</button>
+        <p class="sidebar-note">Get a free key at aistudio.google.com/apikey. Typing it is enough — no need to save first.</p>
+        <div class="api-status" id="apiStatus"><span class="dot"></span><span>API key saved</span></div>
+      </div>
+
+      <div class="sidebar-section">
+        <label>Your CV</label>
+        <button class="btn btn-ghost" id="uploadBtn">📄 Upload CV (PDF)</button>
+        <input type="file" id="fileInput" accept=".pdf,application/pdf">
+        <div class="cv-info" id="cvInfo">
+          <div class="name" id="cvName"></div>
+          <div class="meta" id="cvMeta"></div>
+        </div>
+        <button class="btn btn-primary" id="analyzeBtn" style="margin-top: 12px;" disabled>Analyze CV</button>
+        <p class="hint" id="actionHint">Upload a PDF CV to begin.</p>
+      </div>
+    </aside>
+
+    <div class="main">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>CV Preview</h2>
+          <div class="toolbar-group" id="previewToolbar" style="display: none;">
+            <button class="btn btn-ghost" id="prevPageBtn">◀</button>
+            <span class="page-info" id="pageInfo">1 / 1</span>
+            <button class="btn btn-ghost" id="nextPageBtn">▶</button>
+            <button class="btn btn-ghost" id="zoomOutBtn">−</button>
+            <button class="btn btn-ghost" id="zoomInBtn">+</button>
+          </div>
+        </div>
+        <div class="preview-body" id="previewBody">
+          <div class="placeholder" id="previewPlaceholder">
+            <div class="big">📄</div>
+            <h3>No CV uploaded</h3>
+            <p>Upload your resume as a PDF to preview it here.</p>
+          </div>
+          <canvas id="pdfCanvas" style="display: none;"></canvas>
+          <div class="overlay hidden" id="processingOverlay">
+            <div class="spinner"></div>
+            <span id="processingText">Reading CV…</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>ATS Analysis</h2>
+        </div>
+        <div class="results-body" id="resultsBody">
+          <div class="placeholder" id="resultsPlaceholder">
+            <div class="big">📊</div>
+            <h3>Ready to analyze</h3>
+            <p>Upload your CV and click <strong>Analyze CV</strong> to get your ATS score and improvement suggestions.</p>
+          </div>
+          <div id="resultsContent" style="display: none;"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'];
+    const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+    const STORAGE_KEY = 'cvAts_geminiApiKey';
+
+    const state = {
+      cv: null,
+      currentPage: 1,
+      scale: 1.2,
+      rendering: false,
+      pendingRender: false,
+      analyzing: false,
+      analysis: null,
+    };
+
+    const $ = (sel) => document.querySelector(sel);
+
+    const els = {
+      apiKeyInput: $('#apiKeyInput'),
+      saveKeyBtn: $('#saveKeyBtn'),
+      apiStatus: $('#apiStatus'),
+      uploadBtn: $('#uploadBtn'),
+      fileInput: $('#fileInput'),
+      cvInfo: $('#cvInfo'),
+      cvName: $('#cvName'),
+      cvMeta: $('#cvMeta'),
+      analyzeBtn: $('#analyzeBtn'),
+      actionHint: $('#actionHint'),
+      previewToolbar: $('#previewToolbar'),
+      previewPlaceholder: $('#previewPlaceholder'),
+      previewBody: $('#previewBody'),
+      pdfCanvas: $('#pdfCanvas'),
+      processingOverlay: $('#processingOverlay'),
+      processingText: $('#processingText'),
+      prevPageBtn: $('#prevPageBtn'),
+      nextPageBtn: $('#nextPageBtn'),
+      pageInfo: $('#pageInfo'),
+      zoomInBtn: $('#zoomInBtn'),
+      zoomOutBtn: $('#zoomOutBtn'),
+      resultsPlaceholder: $('#resultsPlaceholder'),
+      resultsContent: $('#resultsContent'),
+    };
+
+    function getApiKey() {
+      return (localStorage.getItem(STORAGE_KEY) || els.apiKeyInput.value.trim());
+    }
+
+    function persistApiKey(key) {
+      if (key) localStorage.setItem(STORAGE_KEY, key);
+    }
+
+    function saveApiKey() {
+      const key = els.apiKeyInput.value.trim();
+      if (!key) { alert('Please enter a valid API key.'); return; }
+      persistApiKey(key);
+      els.apiStatus.classList.add('visible');
+      setTimeout(() => els.apiStatus.classList.remove('visible'), 2500);
+      updateUI();
+    }
+
+    function scoreColor(score) {
+      if (score >= 80) return 'var(--success)';
+      if (score >= 60) return 'var(--accent-hover)';
+      if (score >= 40) return 'var(--warning)';
+      return 'var(--danger)';
+    }
+
+    function ratingClass(rating) {
+      const r = (rating || '').toLowerCase();
+      if (r.includes('excellent') || r.includes('outstanding')) return 'rating-excellent';
+      if (r.includes('good') || r.includes('strong')) return 'rating-good';
+      if (r.includes('fair') || r.includes('average') || r.includes('moderate')) return 'rating-fair';
+      return 'rating-poor';
+    }
+
+    async function extractText(pdfDoc) {
+      const pages = [];
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const page = await pdfDoc.getPage(i);
+        const content = await page.getTextContent();
+        pages.push(content.items.map((item) => item.str).join(' '));
+      }
+      return pages.join('\n\n');
+    }
+
+    async function handleFile(file) {
+      if (!file || (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf'))) {
+        alert('Please upload a PDF file.');
+        return;
+      }
+
+      els.processingOverlay.classList.remove('hidden');
+      els.processingText.textContent = 'Reading CV…';
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdfDoc = await (await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) })).promise;
+        const extractedText = await extractText(pdfDoc);
+
+        state.cv = {
+          name: file.name,
+          size: file.size,
+          pdfDoc,
+          numPages: pdfDoc.numPages,
+          extractedText,
+        };
+        state.currentPage = 1;
+        state.scale = 1.2;
+        state.analysis = null;
+
+        els.cvName.textContent = file.name;
+        els.cvMeta.textContent = `${pdfDoc.numPages} page${pdfDoc.numPages !== 1 ? 's' : ''} · ${formatSize(file.size)}`;
+        els.cvInfo.classList.add('visible');
+
+        renderPreview();
+        clearResults();
+        updateUI();
+      } catch (err) {
+        console.error(err);
+        alert('Failed to read CV: ' + err.message);
+      } finally {
+        els.processingOverlay.classList.add('hidden');
+      }
+    }
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    async function renderPage() {
+      if (!state.cv || state.rendering) {
+        if (state.cv) state.pendingRender = true;
+        return;
+      }
+      state.rendering = true;
+      try {
+        const page = await state.cv.pdfDoc.getPage(state.currentPage);
+        const viewport = page.getViewport({ scale: state.scale });
+        const canvas = els.pdfCanvas;
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        els.pageInfo.textContent = `${state.currentPage} / ${state.cv.numPages}`;
+        els.prevPageBtn.disabled = state.currentPage <= 1;
+        els.nextPageBtn.disabled = state.currentPage >= state.cv.numPages;
+      } finally {
+        state.rendering = false;
+        if (state.pendingRender) {
+          state.pendingRender = false;
+          renderPage();
+        }
+      }
+    }
+
+    function renderPreview() {
+      if (!state.cv) {
+        els.previewPlaceholder.style.display = '';
+        els.pdfCanvas.style.display = 'none';
+        els.previewToolbar.style.display = 'none';
+        return;
+      }
+      els.previewPlaceholder.style.display = 'none';
+      els.pdfCanvas.style.display = '';
+      els.previewToolbar.style.display = 'flex';
+      renderPage();
+    }
+
+    function clearResults() {
+      state.analysis = null;
+      els.resultsPlaceholder.style.display = '';
+      els.resultsContent.style.display = 'none';
+      els.resultsContent.innerHTML = '';
+    }
+
+    function updateUI() {
+      const hasCv = !!state.cv;
+      const hasText = !!(state.cv?.extractedText?.trim());
+      const hasKey = !!getApiKey();
+      const canAnalyze = hasCv && hasText && hasKey && !state.analyzing;
+
+      els.analyzeBtn.disabled = !canAnalyze;
+
+      if (state.analyzing) {
+        els.actionHint.textContent = 'Analyzing your CV…';
+        els.actionHint.className = 'hint';
+      } else if (!hasCv) {
+        els.actionHint.textContent = 'Upload a PDF CV to begin.';
+        els.actionHint.className = 'hint';
+      } else if (!hasText) {
+        els.actionHint.textContent = 'No text found in this PDF. Try a text-based CV, not a scanned image.';
+        els.actionHint.className = 'hint warn';
+      } else if (!hasKey) {
+        els.actionHint.textContent = 'Enter your Gemini API key to run the analysis.';
+        els.actionHint.className = 'hint warn';
+      } else {
+        els.actionHint.textContent = 'Ready! Click Analyze CV to get your ATS report.';
+        els.actionHint.className = 'hint';
+      }
+    }
+
+    function renderAnalysis(data) {
+      els.resultsPlaceholder.style.display = 'none';
+      els.resultsContent.style.display = 'block';
+
+      const score = Math.round(data.overallScore || 0);
+      const circumference = 2 * Math.PI * 42;
+      const offset = circumference - (score / 100) * circumference;
+      const color = scoreColor(score);
+
+      let html = `
+        <div class="score-hero">
+          <div class="score-ring">
+            <svg width="100" height="100" viewBox="0 0 100 100">
+              <circle class="bg" cx="50" cy="50" r="42" fill="none" stroke-width="8"/>
+              <circle class="fg" cx="50" cy="50" r="42" fill="none" stroke-width="8"
+                stroke="${color}" stroke-dasharray="${circumference}" stroke-dashoffset="${circumference}"
+                style="stroke-dashoffset: ${offset}"/>
+            </svg>
+            <div class="score-value">
+              <span class="num" style="color:${color}">${score}</span>
+              <span class="label">ATS Score</span>
+            </div>
+          </div>
+          <div class="score-summary">
+            <span class="rating-badge ${ratingClass(data.rating)}">${escapeHtml(data.rating || 'Rated')}</span>
+            <h3>Overall ATS Compatibility</h3>
+            <p>${escapeHtml(data.summary || '')}</p>
+          </div>
+        </div>
+
+        <div class="categories">
+          <div class="section-title">Score Breakdown</div>
+          ${(data.categories || []).map((cat) => `
+            <div class="category-item">
+              <div class="category-top">
+                <span class="name">${escapeHtml(cat.name)}</span>
+                <span class="score">${Math.round(cat.score || 0)}/100</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${Math.round(cat.score || 0)}%;background:${scoreColor(cat.score)}"></div>
+              </div>
+              <p class="category-feedback">${escapeHtml(cat.feedback || '')}</p>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      if (data.strengths?.length) {
+        html += `
+          <div class="section-title">Strengths</div>
+          <div class="card-grid">
+            <div class="card strength-card">
+              <ul>${data.strengths.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ul>
+            </div>
+          </div>
+        `;
+      }
+
+      if (data.missingKeywords?.length) {
+        html += `
+          <div class="section-title">Missing Keywords</div>
+          <div class="card keyword-card" style="margin-bottom: 24px;">
+            <div class="keyword-tags">
+              ${data.missingKeywords.map((k) => `<span class="tag">${escapeHtml(k)}</span>`).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      if (data.improvements?.length) {
+        html += `<div class="section-title">Improvement Suggestions</div><div class="improvements">`;
+        data.improvements.forEach((item, i) => {
+          const p = (item.priority || 'medium').toLowerCase();
+          html += `
+            <div class="improvement-item" style="animation-delay:${i * 0.05}s">
+              <div class="top">
+                <span class="priority priority-${p}">${escapeHtml(p)}</span>
+                <span class="area">${escapeHtml(item.area || 'General')}</span>
+              </div>
+              <p class="suggestion">${escapeHtml(item.suggestion || '')}</p>
+            </div>
+          `;
+        });
+        html += '</div>';
+      }
+
+      els.resultsContent.innerHTML = html;
+    }
+
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = String(str);
+      return d.innerHTML;
+    }
+
+    function parseAnalysisJson(text) {
+      let cleaned = text.trim();
+      const fence = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (fence) cleaned = fence[1].trim();
+      return JSON.parse(cleaned);
+    }
+
+    async function callGemini(apiKey, cvText) {
+      const prompt = `You are an expert ATS (Applicant Tracking System) resume analyzer and career coach.
+
+Analyze the following CV/resume text and return ONLY valid JSON (no markdown, no extra text) in this exact structure:
+
+{
+  "overallScore": <number 0-100>,
+  "rating": "<Excellent|Good|Fair|Needs Improvement>",
+  "summary": "<2-3 sentence overall assessment>",
+  "categories": [
+    { "name": "Keywords & Skills", "score": <0-100>, "feedback": "<brief feedback>" },
+    { "name": "Formatting & Structure", "score": <0-100>, "feedback": "<brief feedback>" },
+    { "name": "Work Experience", "score": <0-100>, "feedback": "<brief feedback>" },
+    { "name": "Education & Certifications", "score": <0-100>, "feedback": "<brief feedback>" },
+    { "name": "Contact & Professional Summary", "score": <0-100>, "feedback": "<brief feedback>" },
+    { "name": "ATS Readability", "score": <0-100>, "feedback": "<brief feedback>" }
+  ],
+  "strengths": ["<strength 1>", "<strength 2>", ...],
+  "missingKeywords": ["<keyword 1>", "<keyword 2>", ...],
+  "improvements": [
+    { "priority": "high|medium|low", "area": "<section name>", "suggestion": "<specific actionable tip>" }
+  ]
+}
+
+Rules:
+- Score honestly based on ATS best practices (clear headings, bullet points, keywords, no tables/graphics issues, quantified achievements, standard section names).
+- Provide at least 6 improvement suggestions covering different areas.
+- List 5-10 missing keywords that would strengthen ATS matching for the candidate's field.
+- List 3-5 genuine strengths found in the CV.
+- Be specific and actionable in every suggestion.
+
+--- CV TEXT START ---
+${cvText}
+--- CV TEXT END ---`;
+
+      const body = {
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 4096,
+          responseMimeType: 'application/json',
+        },
+      };
+
+      let lastError = null;
+
+      for (const model of GEMINI_MODELS) {
+        try {
+          const res = await fetch(`${GEMINI_BASE}/${model}:generateContent`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
+            body: JSON.stringify(body),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            const msg = data?.error?.message || `HTTP ${res.status}`;
+            if (res.status === 404 || /not found|no longer available/i.test(msg)) {
+              lastError = new Error(msg);
+              continue;
+            }
+            throw new Error(msg);
+          }
+
+          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!text) throw new Error('No response from Gemini.');
+
+          return parseAnalysisJson(text);
+        } catch (err) {
+          if (/not found|no longer available/i.test(err.message)) {
+            lastError = err;
+            continue;
+          }
+          if (err instanceof SyntaxError) {
+            throw new Error('Could not parse analysis. Please try again.');
+          }
+          throw err;
+        }
+      }
+
+      throw lastError || new Error('No supported Gemini model available.');
+    }
+
+    async function analyzeCv() {
+      if (!state.cv?.extractedText?.trim()) {
+        alert('No readable text found in the CV.');
+        return;
+      }
+
+      const apiKey = getApiKey();
+      if (!apiKey) {
+        alert('Please enter your Gemini API key first.');
+        return;
+      }
+
+      persistApiKey(apiKey);
+      state.analyzing = true;
+      updateUI();
+
+      els.resultsPlaceholder.style.display = 'none';
+      els.resultsContent.style.display = 'block';
+      els.resultsContent.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:60px 20px;color:var(--text-secondary)">
+          <div class="spinner"></div>
+          <span>Analyzing CV for ATS compatibility…</span>
+        </div>
+      `;
+
+      try {
+        const analysis = await callGemini(apiKey, state.cv.extractedText);
+        state.analysis = analysis;
+        renderAnalysis(analysis);
+      } catch (err) {
+        console.error(err);
+        els.resultsContent.innerHTML = `<div class="error-box"><strong>Analysis failed:</strong> ${escapeHtml(err.message)}</div>`;
+      } finally {
+        state.analyzing = false;
+        updateUI();
+      }
+    }
+
+    // Events
+    els.saveKeyBtn.addEventListener('click', saveApiKey);
+    els.apiKeyInput.addEventListener('input', updateUI);
+    els.apiKeyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveApiKey(); });
+
+    els.uploadBtn.addEventListener('click', () => els.fileInput.click());
+    els.fileInput.addEventListener('change', (e) => {
+      if (e.target.files[0]) handleFile(e.target.files[0]);
+      e.target.value = '';
+    });
+
+    els.analyzeBtn.addEventListener('click', analyzeCv);
+
+    els.prevPageBtn.addEventListener('click', () => {
+      if (state.currentPage > 1) { state.currentPage--; renderPage(); }
+    });
+    els.nextPageBtn.addEventListener('click', () => {
+      if (state.cv && state.currentPage < state.cv.numPages) { state.currentPage++; renderPage(); }
+    });
+    els.zoomInBtn.addEventListener('click', () => { state.scale = Math.min(state.scale + 0.2, 3); renderPage(); });
+    els.zoomOutBtn.addEventListener('click', () => { state.scale = Math.max(state.scale - 0.2, 0.4); renderPage(); });
+
+    els.previewBody.addEventListener('dragover', (e) => { e.preventDefault(); });
+    els.previewBody.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) els.apiKeyInput.value = saved;
+    updateUI();
+  </script>
+</body>
+</html>
