@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CV ATS Analyzer</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -49,7 +50,7 @@
       border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      overflow-y: auto;
+      overflow: hidden;
       animation: slideIn 0.4s ease;
     }
 
@@ -182,29 +183,80 @@
       background: var(--success);
     }
 
-    .cv-info {
-      background: var(--bg-elevated);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 12px;
-      margin-top: 12px;
-      display: none;
+    .cv-list-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 16px 20px;
+      min-height: 0;
     }
 
-    .cv-info.visible { display: block; animation: fadeUp 0.3s ease; }
+    .cv-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 4px;
+    }
 
-    .cv-info .name {
-      font-size: 0.85rem;
-      font-weight: 600;
+    .cv-list::-webkit-scrollbar { width: 5px; }
+    .cv-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .cv-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg-elevated);
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background var(--transition), border-color var(--transition);
+      animation: fadeUp 0.3s ease;
+    }
+
+    .cv-item:hover { background: var(--bg-hover); }
+    .cv-item.active { border-color: var(--accent); background: rgba(124, 108, 240, 0.1); }
+
+    .cv-item .cv-icon { font-size: 1.1rem; flex-shrink: 0; }
+
+    .cv-item .cv-details { flex: 1; min-width: 0; }
+
+    .cv-item .cv-name {
+      font-size: 0.82rem;
+      font-weight: 500;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .cv-info .meta {
-      font-size: 0.72rem;
+    .cv-item .cv-meta {
+      font-size: 0.7rem;
       color: var(--text-muted);
-      margin-top: 4px;
+      margin-top: 2px;
+    }
+
+    .btn-delete {
+      background: transparent;
+      border: none;
+      color: var(--danger);
+      cursor: pointer;
+      padding: 4px 6px;
+      font-size: 0.8rem;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .btn-delete:hover { background: rgba(240, 96, 112, 0.12); }
+
+    .cv-list-empty {
+      text-align: center;
+      padding: 20px 10px;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      line-height: 1.5;
     }
 
     #fileInput { display: none; }
@@ -569,6 +621,131 @@
       line-height: 1.5;
     }
 
+    .right-panel { display: flex; flex-direction: column; }
+
+    .analysis-area {
+      flex: 1;
+      overflow: auto;
+      min-height: 0;
+    }
+
+    .analysis-area .results-body { height: 100%; }
+
+    .chat-panel {
+      height: 260px;
+      flex-shrink: 0;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-surface);
+    }
+
+    .chat-header {
+      padding: 10px 16px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .chat-messages::-webkit-scrollbar { width: 5px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .chat-empty {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      text-align: center;
+      padding: 16px;
+    }
+
+    .message {
+      max-width: 90%;
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.84rem;
+      line-height: 1.5;
+      animation: fadeUp 0.25s ease;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: var(--accent);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .message.assistant {
+      align-self: flex-start;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+
+    .message.assistant p { margin-bottom: 0.45em; }
+    .message.assistant p:last-child { margin-bottom: 0; }
+    .message.assistant ul, .message.assistant ol { margin: 0.35em 0 0.35em 1.1em; }
+    .message.assistant code {
+      background: var(--bg-base);
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 0.82em;
+    }
+
+    .message.error {
+      align-self: flex-start;
+      background: rgba(240, 96, 112, 0.12);
+      border: 1px solid rgba(240, 96, 112, 0.3);
+      color: var(--danger);
+    }
+
+    .loading-msg {
+      align-self: flex-start;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+
+    .loading-msg .spinner { width: 16px; height: 16px; border-width: 2px; }
+
+    .chat-input-area {
+      display: flex;
+      gap: 8px;
+      padding: 10px 16px 12px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .chat-input-area input { flex: 1; padding: 9px 12px; font-size: 0.85rem; }
+    .chat-input-area .btn { width: auto; padding: 9px 16px; flex-shrink: 0; }
+
+    .chat-hint {
+      padding: 0 16px 8px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .chat-hint.warn { color: var(--warning); }
+
     @media (max-width: 900px) {
       .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
       .sidebar { max-height: 42vh; border-right: none; border-bottom: 1px solid var(--border); }
@@ -582,7 +759,7 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <h1><span class="icon">📋</span> CV ATS Analyzer</h1>
-        <p>Upload your CV, get an ATS score, and actionable improvement tips.</p>
+        <p>Upload CVs, get ATS scores, and ask anything about each resume.</p>
       </div>
 
       <div class="sidebar-section">
@@ -594,15 +771,18 @@
       </div>
 
       <div class="sidebar-section">
-        <label>Your CV</label>
+        <label>Upload CVs</label>
         <button class="btn btn-ghost" id="uploadBtn">📄 Upload CV (PDF)</button>
-        <input type="file" id="fileInput" accept=".pdf,application/pdf">
-        <div class="cv-info" id="cvInfo">
-          <div class="name" id="cvName"></div>
-          <div class="meta" id="cvMeta"></div>
+        <input type="file" id="fileInput" accept=".pdf,application/pdf" multiple>
+        <button class="btn btn-primary" id="analyzeBtn" style="margin-top: 10px;" disabled>Analyze Selected CV</button>
+        <p class="hint" id="actionHint">Upload one or more PDF CVs to begin.</p>
+      </div>
+
+      <div class="cv-list-section">
+        <label>Your CVs</label>
+        <div class="cv-list" id="cvList">
+          <div class="cv-list-empty" id="cvListEmpty">No CVs uploaded yet.</div>
         </div>
-        <button class="btn btn-primary" id="analyzeBtn" style="margin-top: 12px;" disabled>Analyze CV</button>
-        <p class="hint" id="actionHint">Upload a PDF CV to begin.</p>
       </div>
     </aside>
 
@@ -632,17 +812,31 @@
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <h2>ATS Analysis</h2>
-        </div>
-        <div class="results-body" id="resultsBody">
-          <div class="placeholder" id="resultsPlaceholder">
-            <div class="big">📊</div>
-            <h3>Ready to analyze</h3>
-            <p>Upload your CV and click <strong>Analyze CV</strong> to get your ATS score and improvement suggestions.</p>
+      <section class="panel right-panel">
+        <div class="analysis-area">
+          <div class="panel-header">
+            <h2>ATS Analysis</h2>
           </div>
-          <div id="resultsContent" style="display: none;"></div>
+          <div class="results-body" id="resultsBody">
+            <div class="placeholder" id="resultsPlaceholder">
+              <div class="big">📊</div>
+              <h3>Ready to analyze</h3>
+              <p>Select a CV and click <strong>Analyze Selected CV</strong> for your ATS score and tips.</p>
+            </div>
+            <div id="resultsContent" style="display: none;"></div>
+          </div>
+        </div>
+
+        <div class="chat-panel">
+          <div class="chat-header">Ask about this CV</div>
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-empty" id="chatEmpty">Select a CV and ask anything — skills, experience, improvements, etc.</div>
+          </div>
+          <div class="chat-input-area">
+            <input type="text" id="questionInput" placeholder="Ask anything about the selected CV…" disabled>
+            <button class="btn btn-primary" id="sendBtn" disabled>Send</button>
+          </div>
+          <p class="chat-hint" id="chatHint"></p>
         </div>
       </section>
     </div>
@@ -657,13 +851,14 @@
     const STORAGE_KEY = 'cvAts_geminiApiKey';
 
     const state = {
-      cv: null,
+      cvs: new Map(),
+      selectedId: null,
       currentPage: 1,
       scale: 1.2,
       rendering: false,
       pendingRender: false,
       analyzing: false,
-      analysis: null,
+      chatting: false,
     };
 
     const $ = (sel) => document.querySelector(sel);
@@ -674,9 +869,8 @@
       apiStatus: $('#apiStatus'),
       uploadBtn: $('#uploadBtn'),
       fileInput: $('#fileInput'),
-      cvInfo: $('#cvInfo'),
-      cvName: $('#cvName'),
-      cvMeta: $('#cvMeta'),
+      cvList: $('#cvList'),
+      cvListEmpty: $('#cvListEmpty'),
       analyzeBtn: $('#analyzeBtn'),
       actionHint: $('#actionHint'),
       previewToolbar: $('#previewToolbar'),
@@ -692,7 +886,20 @@
       zoomOutBtn: $('#zoomOutBtn'),
       resultsPlaceholder: $('#resultsPlaceholder'),
       resultsContent: $('#resultsContent'),
+      chatMessages: $('#chatMessages'),
+      chatEmpty: $('#chatEmpty'),
+      questionInput: $('#questionInput'),
+      sendBtn: $('#sendBtn'),
+      chatHint: $('#chatHint'),
     };
+
+    function generateId() {
+      return 'cv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+    }
+
+    function getSelectedCv() {
+      return state.selectedId ? state.cvs.get(state.selectedId) : null;
+    }
 
     function getApiKey() {
       return (localStorage.getItem(STORAGE_KEY) || els.apiKeyInput.value.trim());
@@ -737,43 +944,107 @@
     }
 
     async function handleFile(file) {
-      if (!file || (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf'))) {
-        alert('Please upload a PDF file.');
-        return;
-      }
+      if (!file || (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf'))) return;
 
       els.processingOverlay.classList.remove('hidden');
-      els.processingText.textContent = 'Reading CV…';
+      els.processingText.textContent = `Reading "${file.name}"…`;
 
       try {
         const arrayBuffer = await file.arrayBuffer();
         const pdfDoc = await (await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) })).promise;
         const extractedText = await extractText(pdfDoc);
+        const id = generateId();
 
-        state.cv = {
+        state.cvs.set(id, {
+          id,
           name: file.name,
           size: file.size,
           pdfDoc,
           numPages: pdfDoc.numPages,
           extractedText,
-        };
-        state.currentPage = 1;
-        state.scale = 1.2;
-        state.analysis = null;
+          analysis: null,
+          chatHistory: [],
+        });
 
-        els.cvName.textContent = file.name;
-        els.cvMeta.textContent = `${pdfDoc.numPages} page${pdfDoc.numPages !== 1 ? 's' : ''} · ${formatSize(file.size)}`;
-        els.cvInfo.classList.add('visible');
-
-        renderPreview();
-        clearResults();
-        updateUI();
+        renderCvList();
+        if (!state.selectedId) selectCv(id);
+        else updateUI();
       } catch (err) {
         console.error(err);
-        alert('Failed to read CV: ' + err.message);
+        alert(`Failed to read "${file.name}": ${err.message}`);
       } finally {
         els.processingOverlay.classList.add('hidden');
       }
+    }
+
+    async function handleFiles(files) {
+      const pdfs = [...files].filter(
+        (f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+      );
+      if (!pdfs.length) {
+        alert('Please select valid PDF files.');
+        return;
+      }
+      for (const f of pdfs) await handleFile(f);
+    }
+
+    function renderCvList() {
+      const items = [...state.cvs.values()];
+
+      if (!items.length) {
+        els.cvList.innerHTML = '';
+        els.cvList.appendChild(els.cvListEmpty);
+        els.cvListEmpty.style.display = '';
+        return;
+      }
+
+      els.cvList.innerHTML = '';
+      items.forEach((cv) => {
+        const el = document.createElement('div');
+        el.className = 'cv-item' + (cv.id === state.selectedId ? ' active' : '');
+        el.innerHTML = `
+          <span class="cv-icon">📄</span>
+          <div class="cv-details">
+            <div class="cv-name" title="${escapeHtml(cv.name)}">${escapeHtml(cv.name)}</div>
+            <div class="cv-meta">${cv.numPages} pg · ${formatSize(cv.size)}${cv.analysis ? ' · ✓ Analyzed' : ''}</div>
+          </div>
+          <button class="btn-delete" title="Delete">✕</button>
+        `;
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('.btn-delete')) return;
+          selectCv(cv.id);
+        });
+        el.querySelector('.btn-delete').addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteCv(cv.id);
+        });
+        els.cvList.appendChild(el);
+      });
+    }
+
+    function selectCv(id) {
+      state.selectedId = id;
+      state.currentPage = 1;
+      state.scale = 1.2;
+      renderCvList();
+      renderPreview();
+      renderResults();
+      renderChat();
+      updateUI();
+    }
+
+    function deleteCv(id) {
+      state.cvs.delete(id);
+      if (state.selectedId === id) {
+        const remaining = [...state.cvs.keys()];
+        state.selectedId = remaining.length ? remaining[0] : null;
+        state.currentPage = 1;
+      }
+      renderCvList();
+      renderPreview();
+      renderResults();
+      renderChat();
+      updateUI();
     }
 
     function formatSize(bytes) {
@@ -783,21 +1054,22 @@
     }
 
     async function renderPage() {
-      if (!state.cv || state.rendering) {
-        if (state.cv) state.pendingRender = true;
+      const cv = getSelectedCv();
+      if (!cv || state.rendering) {
+        if (cv) state.pendingRender = true;
         return;
       }
       state.rendering = true;
       try {
-        const page = await state.cv.pdfDoc.getPage(state.currentPage);
+        const page = await cv.pdfDoc.getPage(state.currentPage);
         const viewport = page.getViewport({ scale: state.scale });
         const canvas = els.pdfCanvas;
         canvas.height = viewport.height;
         canvas.width = viewport.width;
         await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-        els.pageInfo.textContent = `${state.currentPage} / ${state.cv.numPages}`;
+        els.pageInfo.textContent = `${state.currentPage} / ${cv.numPages}`;
         els.prevPageBtn.disabled = state.currentPage <= 1;
-        els.nextPageBtn.disabled = state.currentPage >= state.cv.numPages;
+        els.nextPageBtn.disabled = state.currentPage >= cv.numPages;
       } finally {
         state.rendering = false;
         if (state.pendingRender) {
@@ -808,7 +1080,8 @@
     }
 
     function renderPreview() {
-      if (!state.cv) {
+      const cv = getSelectedCv();
+      if (!cv) {
         els.previewPlaceholder.style.display = '';
         els.pdfCanvas.style.display = 'none';
         els.previewToolbar.style.display = 'none';
@@ -820,37 +1093,122 @@
       renderPage();
     }
 
-    function clearResults() {
-      state.analysis = null;
-      els.resultsPlaceholder.style.display = '';
-      els.resultsContent.style.display = 'none';
-      els.resultsContent.innerHTML = '';
+    function renderResults() {
+      const cv = getSelectedCv();
+      if (!cv || !cv.analysis) {
+        els.resultsPlaceholder.style.display = '';
+        els.resultsContent.style.display = 'none';
+        els.resultsContent.innerHTML = '';
+        return;
+      }
+      renderAnalysis(cv.analysis);
     }
 
     function updateUI() {
-      const hasCv = !!state.cv;
-      const hasText = !!(state.cv?.extractedText?.trim());
+      const cv = getSelectedCv();
+      const hasCv = !!cv;
+      const hasText = !!(cv?.extractedText?.trim());
       const hasKey = !!getApiKey();
       const canAnalyze = hasCv && hasText && hasKey && !state.analyzing;
+      const canChat = hasCv && hasText && hasKey && !state.chatting;
 
       els.analyzeBtn.disabled = !canAnalyze;
+      els.questionInput.disabled = !canChat;
+      els.sendBtn.disabled = !canChat;
 
       if (state.analyzing) {
-        els.actionHint.textContent = 'Analyzing your CV…';
+        els.actionHint.textContent = 'Analyzing selected CV…';
+        els.actionHint.className = 'hint';
+      } else if (!state.cvs.size) {
+        els.actionHint.textContent = 'Upload one or more PDF CVs to begin.';
         els.actionHint.className = 'hint';
       } else if (!hasCv) {
-        els.actionHint.textContent = 'Upload a PDF CV to begin.';
+        els.actionHint.textContent = 'Select a CV from the list.';
         els.actionHint.className = 'hint';
       } else if (!hasText) {
-        els.actionHint.textContent = 'No text found in this PDF. Try a text-based CV, not a scanned image.';
+        els.actionHint.textContent = 'No text found — try a text-based PDF, not a scanned image.';
         els.actionHint.className = 'hint warn';
       } else if (!hasKey) {
-        els.actionHint.textContent = 'Enter your Gemini API key to run the analysis.';
+        els.actionHint.textContent = 'Enter your Gemini API key to analyze or chat.';
         els.actionHint.className = 'hint warn';
       } else {
-        els.actionHint.textContent = 'Ready! Click Analyze CV to get your ATS report.';
+        els.actionHint.textContent = 'Analyze for ATS score, or ask anything in the chat below.';
         els.actionHint.className = 'hint';
       }
+
+      if (state.chatting) {
+        els.chatHint.textContent = '';
+        els.chatHint.className = 'chat-hint';
+      } else if (!hasKey) {
+        els.chatHint.textContent = 'Enter your Gemini API key to chat.';
+        els.chatHint.className = 'chat-hint warn';
+      } else if (!hasCv) {
+        els.chatHint.textContent = 'Select a CV to ask questions about it.';
+        els.chatHint.className = 'chat-hint warn';
+      } else if (!hasText) {
+        els.chatHint.textContent = 'This CV has no extractable text.';
+        els.chatHint.className = 'chat-hint warn';
+      } else {
+        els.chatHint.textContent = '';
+        els.chatHint.className = 'chat-hint';
+      }
+    }
+
+    function renderChat() {
+      const cv = getSelectedCv();
+      els.chatMessages.innerHTML = '';
+
+      if (!cv) {
+        els.chatEmpty = document.createElement('div');
+        els.chatEmpty.className = 'chat-empty';
+        els.chatEmpty.textContent = 'Select a CV and ask anything — skills, experience, improvements, etc.';
+        els.chatMessages.appendChild(els.chatEmpty);
+        return;
+      }
+
+      if (!cv.chatHistory.length) {
+        els.chatEmpty = document.createElement('div');
+        els.chatEmpty.className = 'chat-empty';
+        els.chatEmpty.textContent = `Ask anything about "${cv.name}" — e.g. "What are my top skills?" or "How can I improve this CV?"`;
+        els.chatMessages.appendChild(els.chatEmpty);
+        return;
+      }
+
+      cv.chatHistory.forEach((msg) => appendMessageEl(msg.role, msg.content, msg.isError));
+      scrollChatToBottom();
+    }
+
+    function appendMessageEl(role, content, isError = false) {
+      if (els.chatEmpty?.parentNode) {
+        els.chatEmpty.remove();
+        els.chatEmpty = null;
+      }
+      const div = document.createElement('div');
+      div.className = 'message ' + (isError ? 'error' : role);
+      if (role === 'assistant' && !isError) {
+        div.innerHTML = marked.parse(content);
+      } else {
+        div.textContent = content;
+      }
+      els.chatMessages.appendChild(div);
+      return div;
+    }
+
+    function showChatLoading() {
+      const div = document.createElement('div');
+      div.className = 'loading-msg';
+      div.id = 'chatLoading';
+      div.innerHTML = '<div class="spinner"></div><span>Thinking…</span>';
+      els.chatMessages.appendChild(div);
+      scrollChatToBottom();
+    }
+
+    function hideChatLoading() {
+      document.getElementById('chatLoading')?.remove();
+    }
+
+    function scrollChatToBottom() {
+      els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
     }
 
     function renderAnalysis(data) {
@@ -955,7 +1313,42 @@
       return JSON.parse(cleaned);
     }
 
-    async function callGemini(apiKey, cvText) {
+    async function geminiRequest(apiKey, body) {
+      let lastError = null;
+      for (const model of GEMINI_MODELS) {
+        try {
+          const res = await fetch(`${GEMINI_BASE}/${model}:generateContent`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            const msg = data?.error?.message || `HTTP ${res.status}`;
+            if (res.status === 404 || /not found|no longer available/i.test(msg)) {
+              lastError = new Error(msg);
+              continue;
+            }
+            throw new Error(msg);
+          }
+          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!text) {
+            const reason = data?.candidates?.[0]?.finishReason || data?.promptFeedback?.blockReason;
+            throw new Error(reason ? `Response blocked: ${reason}` : 'No response from Gemini.');
+          }
+          return text;
+        } catch (err) {
+          if (/not found|no longer available/i.test(err.message)) {
+            lastError = err;
+            continue;
+          }
+          throw err;
+        }
+      }
+      throw lastError || new Error('No supported Gemini model available.');
+    }
+
+    async function callGeminiAnalysis(apiKey, cvText) {
       const prompt = `You are an expert ATS (Applicant Tracking System) resume analyzer and career coach.
 
 Analyze the following CV/resume text and return ONLY valid JSON (no markdown, no extra text) in this exact structure:
@@ -992,59 +1385,86 @@ ${cvText}
 
       const body = {
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 4096,
-          responseMimeType: 'application/json',
-        },
+        generationConfig: { temperature: 0.4, maxOutputTokens: 4096, responseMimeType: 'application/json' },
       };
 
-      let lastError = null;
-
-      for (const model of GEMINI_MODELS) {
-        try {
-          const res = await fetch(`${GEMINI_BASE}/${model}:generateContent`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': apiKey,
-            },
-            body: JSON.stringify(body),
-          });
-
-          const data = await res.json();
-
-          if (!res.ok) {
-            const msg = data?.error?.message || `HTTP ${res.status}`;
-            if (res.status === 404 || /not found|no longer available/i.test(msg)) {
-              lastError = new Error(msg);
-              continue;
-            }
-            throw new Error(msg);
-          }
-
-          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!text) throw new Error('No response from Gemini.');
-
-          return parseAnalysisJson(text);
-        } catch (err) {
-          if (/not found|no longer available/i.test(err.message)) {
-            lastError = err;
-            continue;
-          }
-          if (err instanceof SyntaxError) {
-            throw new Error('Could not parse analysis. Please try again.');
-          }
-          throw err;
-        }
+      const text = await geminiRequest(apiKey, body);
+      try {
+        return parseAnalysisJson(text);
+      } catch {
+        throw new Error('Could not parse analysis. Please try again.');
       }
+    }
 
-      throw lastError || new Error('No supported Gemini model available.');
+    async function callGeminiChat(apiKey, cvText, cvName, question, history) {
+      const historyText = history
+        .slice(0, -1)
+        .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+        .join('\n');
+
+      const systemPrompt = `You are an expert CV/resume coach and career advisor. Answer questions about the candidate's CV below.
+
+Rules:
+1. Base answers on the CV content provided. You may give career advice, ATS tips, and suggestions beyond the literal text when relevant.
+2. If asked about something not in the CV, say clearly that it isn't mentioned in the document.
+3. Be helpful, specific, and actionable. Use Markdown when helpful.
+4. Keep answers concise unless the user asks for detail.
+
+CV title: "${cvName}"
+
+--- CV TEXT START ---
+${cvText}
+--- CV TEXT END ---${historyText ? `\n\n--- PREVIOUS CONVERSATION ---\n${historyText}` : ''}`;
+
+      const body = {
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: question }] }],
+        generationConfig: { temperature: 0.5, maxOutputTokens: 2048 },
+      };
+
+      return geminiRequest(apiKey, body);
+    }
+
+    async function sendQuestion() {
+      const question = els.questionInput.value.trim();
+      if (!question || state.chatting) return;
+
+      const cv = getSelectedCv();
+      const apiKey = getApiKey();
+      if (!cv) { alert('Please select a CV first.'); return; }
+      if (!apiKey) { alert('Please enter your Gemini API key first.'); return; }
+
+      persistApiKey(apiKey);
+      cv.chatHistory.push({ role: 'user', content: question });
+      els.questionInput.value = '';
+      appendMessageEl('user', question);
+
+      state.chatting = true;
+      updateUI();
+      showChatLoading();
+
+      try {
+        const response = await callGeminiChat(apiKey, cv.extractedText, cv.name, question, cv.chatHistory);
+        cv.chatHistory.push({ role: 'assistant', content: response });
+        hideChatLoading();
+        appendMessageEl('assistant', response);
+      } catch (err) {
+        console.error(err);
+        hideChatLoading();
+        const errMsg = err.message || 'An error occurred.';
+        cv.chatHistory.push({ role: 'assistant', content: errMsg, isError: true });
+        appendMessageEl('assistant', errMsg, true);
+      } finally {
+        state.chatting = false;
+        updateUI();
+        scrollChatToBottom();
+      }
     }
 
     async function analyzeCv() {
-      if (!state.cv?.extractedText?.trim()) {
-        alert('No readable text found in the CV.');
+      const cv = getSelectedCv();
+      if (!cv?.extractedText?.trim()) {
+        alert('No readable text found in the selected CV.');
         return;
       }
 
@@ -1063,14 +1483,15 @@ ${cvText}
       els.resultsContent.innerHTML = `
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:60px 20px;color:var(--text-secondary)">
           <div class="spinner"></div>
-          <span>Analyzing CV for ATS compatibility…</span>
+          <span>Analyzing "${escapeHtml(cv.name)}"…</span>
         </div>
       `;
 
       try {
-        const analysis = await callGemini(apiKey, state.cv.extractedText);
-        state.analysis = analysis;
+        const analysis = await callGeminiAnalysis(apiKey, cv.extractedText);
+        cv.analysis = analysis;
         renderAnalysis(analysis);
+        renderCvList();
       } catch (err) {
         console.error(err);
         els.resultsContent.innerHTML = `<div class="error-box"><strong>Analysis failed:</strong> ${escapeHtml(err.message)}</div>`;
@@ -1087,17 +1508,22 @@ ${cvText}
 
     els.uploadBtn.addEventListener('click', () => els.fileInput.click());
     els.fileInput.addEventListener('change', (e) => {
-      if (e.target.files[0]) handleFile(e.target.files[0]);
+      if (e.target.files.length) handleFiles(e.target.files);
       e.target.value = '';
     });
 
     els.analyzeBtn.addEventListener('click', analyzeCv);
+    els.sendBtn.addEventListener('click', sendQuestion);
+    els.questionInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuestion(); }
+    });
 
     els.prevPageBtn.addEventListener('click', () => {
       if (state.currentPage > 1) { state.currentPage--; renderPage(); }
     });
     els.nextPageBtn.addEventListener('click', () => {
-      if (state.cv && state.currentPage < state.cv.numPages) { state.currentPage++; renderPage(); }
+      const cv = getSelectedCv();
+      if (cv && state.currentPage < cv.numPages) { state.currentPage++; renderPage(); }
     });
     els.zoomInBtn.addEventListener('click', () => { state.scale = Math.min(state.scale + 0.2, 3); renderPage(); });
     els.zoomOutBtn.addEventListener('click', () => { state.scale = Math.max(state.scale - 0.2, 0.4); renderPage(); });
@@ -1105,7 +1531,7 @@ ${cvText}
     els.previewBody.addEventListener('dragover', (e) => { e.preventDefault(); });
     els.previewBody.addEventListener('drop', (e) => {
       e.preventDefault();
-      if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+      if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
     });
 
     const saved = localStorage.getItem(STORAGE_KEY);
